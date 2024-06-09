@@ -1,7 +1,7 @@
-.long-word-break {
-           }
-        @media (max-width: 450px) { /* Adjust the breakpoint as needed */
+@media (max-width: 450px) { /* Adjust the breakpoint as needed */
             .long-word-break {
             overflow-wrap: break-word;
             }
-        }
+            .small-screen-h1 {
+                font-size: 0.5rem; /* 1.5 * 16px = 24px */
+            }
