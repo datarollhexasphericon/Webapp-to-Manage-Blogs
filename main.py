@@ -1,6 +1,7 @@
 from datetime import date
 import os
 from dotenv import load_dotenv
+import smtplib
 from flask import Flask, abort, render_template, redirect, url_for, flash
 from flask_bootstrap import Bootstrap5
 from flask_ckeditor import CKEditor
@@ -12,7 +13,7 @@ from sqlalchemy import Integer, String, Text, ForeignKey, desc
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 # Import your forms from the forms.py
-from forms import CreatePostForm, RegisterForm, LoginForm, CommentForm
+from forms import CreatePostForm, RegisterForm, LoginForm, CommentForm, ContactForm
 
 # Load environment variables from a .env file
 load_dotenv()
@@ -31,7 +32,7 @@ login_manager.init_app(app)
 def load_user(user_id):
     return db.get_or_404(User, user_id)
 
-# CREATE DATABASE
+# Create database
 class Base(DeclarativeBase):
     pass
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get("DB_URI", "sqlite:///blog.db")
@@ -39,13 +40,11 @@ db = SQLAlchemy(model_class=Base)
 db.init_app(app)
 
 
-# CONFIGURE TABLES
+# Configure tables
 class BlogPost(db.Model):
     __tablename__ = "blog_posts"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # Create Foreign Key, "users.id" the users refers to the tablename of User.
     author_id: Mapped[int] = mapped_column(Integer, db.ForeignKey("users.id"))
-    # Create reference to the User object. The "posts" refers to the posts property in the User class.
     author = relationship("User", back_populates="posts")
     title: Mapped[str] = mapped_column(String(250), unique=True, nullable=False)
     subtitle: Mapped[str] = mapped_column(String(250), nullable=False)
@@ -55,15 +54,12 @@ class BlogPost(db.Model):
     comments = relationship("Comment", back_populates="parent_post")
 
 
-# Create a User table for all your registered users
 class User(UserMixin, db.Model):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     email: Mapped[str] = mapped_column(String(100), unique=True)
     password: Mapped[str] = mapped_column(String(100))
     name: Mapped[str] = mapped_column(String(100))
-    # This will act like a list of BlogPost objects attached to each User.
-    # The "author" refers to the author property in the BlogPost class.
     posts = relationship("BlogPost", back_populates="author")
     comments = relationship("Comment", back_populates="comment_author")
 
@@ -92,6 +88,7 @@ def admin_only(f):
 
     return decorated_function
 
+# Create gravatar for users
 gravatar = Gravatar(app,
                     size=100,
                     rating='g',
@@ -101,7 +98,6 @@ gravatar = Gravatar(app,
                     use_ssl=False,
                     base_url=None)
 
-# TODO: Use Werkzeug to hash the user's password when creating a new user.
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     form = RegisterForm()
@@ -133,7 +129,6 @@ def register():
     return render_template("register.html", form=form)
 
 
-# TODO: Retrieve a user from the database based on their email.
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     form = LoginForm()
@@ -172,7 +167,6 @@ def get_all_posts():
     return render_template("index.html", all_posts=posts)
 
 
-# TODO: Allow logged-in users to comment on posts
 @app.route("/post/<int:post_id>", methods=["GET", "POST"])
 def show_post(post_id):
     form = CommentForm()
@@ -194,7 +188,6 @@ def show_post(post_id):
     return render_template("post.html", post=requested_post, comments=comments, form=form)
 
 
-# TODO: Use a decorator so only an admin user can create a new post
 @app.route("/new-post", methods=["GET", "POST"])
 @admin_only
 def add_new_post():
@@ -214,7 +207,6 @@ def add_new_post():
     return render_template("make-post.html", form=form)
 
 
-# TODO: Use a decorator so only an admin user can edit a post
 @app.route("/edit-post/<int:post_id>", methods=["GET", "POST"])
 @admin_only
 def edit_post(post_id):
@@ -237,7 +229,6 @@ def edit_post(post_id):
     return render_template("make-post.html", form=edit_form, is_edit=True)
 
 
-# TODO: Use a decorator so only an admin user can delete a post
 @app.route("/delete/<int:post_id>")
 @admin_only
 def delete_post(post_id):
@@ -260,10 +251,23 @@ def about():
     return render_template("about.html")
 
 
-@app.route("/contact")
+@app.route("/contact", methods=['GET', 'POST'])
 def contact():
-    return render_template("contact.html")
+    form = ContactForm()
+    if form.validate_on_submit():
+        send_email(name=form.name.data, email=form.email.data, phone=form.phone.data, text=form.body.data)
+        return render_template("contact.html", form=form, msg_sent=True)
+    return render_template("contact.html", form=form, msg_sent=False)
 
+def send_email(name, email, phone, text):
+    '''Send email to the Web Admin with data contact data and message provided by user'''
+    message = f"Subject:New Blog Message\n\nName: {name}\nEmail: {email}\nPhone: {phone}\nMessage: {text}"
+    with smtplib.SMTP("smtp.gmail.com") as connection:
+        connection.starttls()  # message will be encrypted
+        connection.login(user=os.environ.get('ADMIN_MAIL'), password=os.environ.get('ADMIN_PASSWORD'))
+        connection.sendmail(from_addr=email,
+                            to_addrs=os.environ.get('ADMIN_MAIL'),
+                            msg=message)
 
 if __name__ == "__main__":
     app.run(debug=False, port=5000)
