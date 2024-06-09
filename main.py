@@ -8,7 +8,7 @@ from flask_gravatar import Gravatar
 from flask_login import UserMixin, login_user, LoginManager, login_required, current_user, logout_user
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import relationship, DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import Integer, String, Text, ForeignKey
+from sqlalchemy import Integer, String, Text, ForeignKey, desc
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 # Import your forms from the forms.py
@@ -177,6 +177,7 @@ def get_all_posts():
 def show_post(post_id):
     form = CommentForm()
     requested_post = db.get_or_404(BlogPost, post_id)
+    comments = db.session.execute(db.select(Comment).where(Comment.post_id == post_id).order_by(desc(Comment.id))).scalars()
     if form.validate_on_submit():
         if current_user.is_authenticated:
             new_comment = Comment(
@@ -190,7 +191,7 @@ def show_post(post_id):
             flash("You need to login or register to comment.")
             return redirect(url_for("login"))
 
-    return render_template("post.html", post=requested_post, comments=requested_post.comments, form=form)
+    return render_template("post.html", post=requested_post, comments=comments, form=form)
 
 
 # TODO: Use a decorator so only an admin user can create a new post
@@ -245,13 +246,13 @@ def delete_post(post_id):
     db.session.commit()
     return redirect(url_for('get_all_posts'))
 
-@app.route("/delete/<int:comment_id>")
+@app.route("/delete/<int:comment_id>/<int:post_id>")
 @admin_only
-def delete_comment(comment_id):
+def delete_comment(comment_id, post_id):
     comment_to_delete = db.get_or_404(Comment, comment_id)
     db.session.delete(comment_to_delete)
     db.session.commit()
-    return redirect(url_for('show_post', post_id=comment_to_delete.post_id))
+    return redirect(url_for('show_post', post_id=post_id))
 
 
 @app.route("/about")
