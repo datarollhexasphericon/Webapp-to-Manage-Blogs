@@ -1,0 +1,7 @@
+.long-word-break {
+           }
+        @media (max-width: 450px) { /* Adjust the breakpoint as needed */
+            .long-word-break {
+            overflow-wrap: break-word;
+            }
+        }
