@@ -9,6 +9,8 @@ The Blog Web Application allows users to register and log in, create new blog po
 ## Features
 
 - User authentication (login, registration, logout)
+- Admin-only functionality
+- Data storage in a SQL database 
 - Create, read, update, and delete blog posts
 - Responsive design with basic styling
 
